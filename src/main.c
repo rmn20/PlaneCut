@@ -1,0 +1,333 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
+#include <float.h>
+#include <string.h>
+#include <time.h>
+
+#include "lodepng.h"
+#include "cvector.h"
+
+#include "color.h"
+#include "bucket.h"
+
+cvector_vector_type(Color) buildPalette(Color* img, int w, int h, size_t paletteSize,int bits);
+cvector_vector_type(Color) bucketsToPalette(cvector_vector_type(Bucket) buckets);
+
+void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) palette, bool dither, int bits);
+size_t findNearestColor(Color pixel, cvector_vector_type(Color) palette);
+
+int main(int argc, char** args) {
+	
+	if(argc == 1) {
+		printf("PlaneCut 1.0\nImage palette generator by Roman Lahin\n");
+		
+		printf("Enter the paths to the images as arguments.\n");
+		printf("Use -p to change palette size. (from 1 to 256 colors) (default is 256)\n");
+		printf("Use -dither 0/1 to enable dithering. (default is 0)\n");
+		printf("Use -bits RGB to change the number of bits per channel. (default is 888)\n");
+		printf("Use -outdir to change output directory.\n");
+	}
+
+	size_t paletteSize = 256;
+	bool dither = false;
+	int bits = 888;
+	char* outdir = NULL;
+
+	for(size_t i=1; i<argc; i++) {
+		char* fname = *(args + i);
+		
+		if(*fname == '-') {
+			i++;
+			if(i >= argc) break;
+			
+			char* arg = *(args + i);
+			
+			if(!strcmp(fname, "-p")) {
+				paletteSize = atoi(arg);
+				
+				if(paletteSize <= 0 || paletteSize > 256) {
+					printf("Invalid palette size, using 256 colors instead.\n");
+					paletteSize = 256;
+				}
+			} else if(!strcmp(fname, "-dither")) {
+				dither = atoi(arg);
+			} else if(!strcmp(fname, "-bits")) {
+				bits = atoi(arg);
+			} else if(!strcmp(fname, "-outdir")) {
+				outdir = arg;
+			}
+		}
+	}
+	
+	for(size_t i=1; i<argc; i++) {
+		char* path = *(args + i);
+		
+		if(*path == '-') {
+			i++;
+			continue;
+		}
+		
+		unsigned char* image32 = NULL;
+		unsigned int w, h;
+		
+		//Загрузка изображения
+		int error = lodepng_decode32_file(&image32, &w, &h, path);
+		
+		if(error) {
+			printf("Can't load %s, error %d\n", path, error);
+		} else {
+			printf("Processing %s...\n", path);
+			//Переводим rgba пиксели в массив цветов
+			Color* image = image32;
+			
+			time_t ms = clock();
+			
+			//Генерация палитры
+			cvector_vector_type(Color) palette = buildPalette(image, w, h, paletteSize, bits);
+			
+			printf("Palette generation time: %lu ms\n", (unsigned long) (clock() - ms) * 1000 / CLOCKS_PER_SEC);
+			
+			//Добавление -out.png к концу файла
+			char* newfName = NULL;
+			
+			if(outdir == NULL) {
+				newfName = malloc(strlen(path) + 8);
+				strcpy(newfName, path);
+				char* pos = strrchr(newfName, '.');
+				
+				if(pos) strcpy(pos, "-out.png");
+				else strcat(newfName, "-out.png");
+				
+			} else {
+				char* fname = strrchr(path, '/');
+				if(fname == NULL) fname = strrchr(path, '\\');
+				if(fname == NULL) fname = path;
+				
+				size_t outdir_len = strlen(outdir);
+				
+				newfName = malloc(outdir_len + 1 + strlen(fname));
+				
+				strcpy(newfName, outdir);
+				if(outdir[outdir_len - 1] != '\\' && outdir[outdir_len - 1] != '/') strcat(newfName, "/");
+				
+				strcat(newfName, fname);
+			}
+			
+			printf("Export path: %s\n", newfName);
+			exportPNG(newfName, image, w, h, palette, dither, bits);
+			free(newfName);
+		}
+		
+		free(image32);
+	}
+	
+	return 0;
+}
+
+cvector_vector_type(Color) buildPalette(
+	Color* img, int w, int h, size_t paletteSize, int bits) {
+		
+	cvector_vector_type(Bucket) buckets = NULL;
+	bool hasAlpha = false;
+	
+	//Создаём первое ведро и заполняем его цветами
+	Bucket firstBucket = (Bucket) {0};
+	
+	for(size_t i=0; i<w*h; i++) {
+		//Обработка прозрачных пикселей
+		if(img[i].a == 0) {
+			if(!hasAlpha) {
+				hasAlpha = true;
+				paletteSize--;
+			}
+			continue;
+		}
+		
+		vec3 col = colorToVec3(img + i);
+		bucketAddColor(&firstBucket, &col);
+	}
+	
+	//Обработка ведра и добавление его в вектор вёдер
+	if(cvector_size(firstBucket.colors) > 0) {
+		bucketCompute(&firstBucket, bits);
+		cvector_push_back(buckets, firstBucket);
+	}
+	
+	//Разделение вёдер
+	while(true) {
+		//Проверка количества уникальных цветов
+		cvector_vector_type(Color) palette = bucketsToPalette(buckets);
+		size_t colorsCount = cvector_size(palette);
+		cvector_free(palette);
+		
+		//Завершение выполнения, если в векторе достаточное число вёдер
+		if(colorsCount >= paletteSize) break;
+		
+		printf("%lu / %lu done\n", (unsigned long) colorsCount, (unsigned long) paletteSize);
+		
+		//Поиск ведра с наибольшим расстоянием между цветами в нём и его основным цветом
+		int longestBucketId = -1;
+		float maxLength = -FLT_MAX;
+		
+		for(size_t i=0; i<cvector_size(buckets); i++) {
+			Bucket* bucket = buckets + i;
+
+			float len = bucket->length;
+			
+			if(!bucket->dontPick && cvector_size(bucket->colors) > 1 && len > maxLength) {
+				maxLength = len;
+				longestBucketId = i;
+			}
+		}
+		
+		//Не получилось найти подходящее ведро
+		if(longestBucketId == -1) break;
+		
+		//Разделение выбранного ведра на 2
+		Bucket b1 = (Bucket) {0}, b2 = (Bucket) {0};
+		bucketCut(buckets + longestBucketId, &b1, &b2, bits);
+		
+		//Удаление текущего ведра
+		bucketFree(buckets + longestBucketId);
+		cvector_erase(buckets, longestBucketId);
+		
+		/*Если одно из вёдер содержит 0 цветов, значит
+		код не может разделить текущее ведро на 2, и
+		нужно обозначить это, чтобы больше не выбирать это ведро*/
+		if(cvector_size(b1.colors) == 0) b2.dontPick = true;
+		if(cvector_size(b2.colors) == 0) b1.dontPick = true;
+		
+		//Добавляем непустые вёдра в вектор
+		if(cvector_size(b1.colors) > 0) cvector_push_back(buckets, b1);
+		if(cvector_size(b2.colors) > 0) cvector_push_back(buckets, b2);
+	}
+	
+	//Генерация палитры и добавление прозрачного цвета
+	cvector_vector_type(Color) palette = paletteSize == 0 ? NULL : bucketsToPalette(buckets);
+	if(hasAlpha) cvector_push_back(palette, (Color) {0});
+	
+	//Очистка
+	for(size_t i=0; i<cvector_size(buckets); i++) {
+		bucketFree(buckets + i);
+	}
+	cvector_free(buckets);
+	
+	return palette;
+}
+
+cvector_vector_type(Color) bucketsToPalette(cvector_vector_type(Bucket) buckets) {
+	//Составление вектора неповторяющихся цветов из вектора вёдер
+	cvector_vector_type(Color) palette = NULL;
+	
+	size_t bucketsLength = cvector_size(buckets);
+	
+	for(size_t i=0; i<bucketsLength; i++) {
+		Color* bucketCol = &((buckets + i)->col);
+		
+		bool found = false;
+		
+		size_t paletteSize = cvector_size(palette);
+		for(size_t t=0; t<paletteSize; t++) {
+			
+			if(colorEquals(bucketCol, palette + t)) {
+				found = true;
+				break;
+			}
+		}
+		
+		if(!found) cvector_push_back(palette, *bucketCol);
+	}
+	
+	return palette;
+}
+
+void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) palette, bool dither, int bits) {
+	//Экспорт изображения в png
+	LodePNGState state = (LodePNGState) {0};
+	lodepng_state_init(&state);
+	
+	//Инициализация данных для экспорта
+	state.info_png.color.colortype = LCT_PALETTE;
+	state.info_png.color.bitdepth = 8;
+	
+	state.info_raw.colortype = LCT_PALETTE;
+	state.info_raw.bitdepth = 8;
+	
+	state.encoder.auto_convert = false;
+	
+	//Составление палитры
+	for(size_t i=0; i<cvector_size(palette); i++) {
+		Color col = palette[i];
+		
+		lodepng_palette_add(&state.info_png.color, col.r, col.g, col.b, col.a);
+		lodepng_palette_add(&state.info_raw, col.r, col.g, col.b, col.a);
+	}
+	
+	//Поиск ближайших цветов в палитре
+	unsigned char* indices = malloc(w * h);
+	
+	for(size_t y=0; y<h; y++) {
+		for(size_t x=0; x<w; x++) {
+			Color pixel = img[x + y*w];
+			
+			unsigned char nearestColorIndex = findNearestColor(pixel, palette);
+			indices[x + y*w] = nearestColorIndex;
+			
+			if(dither) {
+				Color nearestColor = palette[nearestColorIndex];
+				
+				int quantError[3] = {
+					pixel.r - nearestColor.r, 
+					pixel.g - nearestColor.g, 
+					pixel.b - nearestColor.b
+				};
+				
+				const float errorSpread = 0.75;
+				
+				if(x <= w-2) {
+					colorAdd(img + x+1 + y*w, quantError, 6 / 16.0 * errorSpread);
+					if(y <= h-2) colorAdd(img + x+1 + (y+1)*w, quantError, 1 / 16.0 * errorSpread);
+				}
+				
+				if(y <= h-2) {
+					if(x >= 1) colorAdd(img + x-1 + (y+1)*w, quantError, 4 / 16.0 * errorSpread);
+					colorAdd(img + x + (y+1)*w, quantError, 5 / 16.0 * errorSpread);
+				}
+			}
+		}
+	}
+	
+	//Экспорт
+	unsigned char* buffer = NULL;
+	size_t bufferSize = 0;
+	
+	unsigned int error = lodepng_encode(&buffer, &bufferSize, indices, w, h, &state);
+	
+	if(!error) {
+		error = lodepng_save_file(buffer, bufferSize, file);
+		if(error) printf("lodepng save file error %u: %s\n", error, lodepng_error_text(error));
+		
+	} else printf("lodepng encode error %u: %s\n", error, lodepng_error_text(error));
+	
+	lodepng_state_cleanup(&state);
+	free(buffer);
+	free(indices);
+}
+
+size_t findNearestColor(Color pixel, cvector_vector_type(Color) palette) {
+	//Поиск ближайшего цвета в палитре
+	float minDist = FLT_MAX;
+	size_t closest = 0;
+	
+	for(size_t i=0; i<cvector_size(palette); i++) {
+		float dist = colorDistance(&pixel, palette + i);
+		
+		if(dist < minDist) {
+			minDist = dist;
+			closest = i;
+		}
+	}
+	
+	return closest;
+}
