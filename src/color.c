@@ -11,7 +11,7 @@ int clamp(int x, int min, int max) {
 
 //Redmean from wikipedia
 float colorDistance(Color* c1, Color* c2) {
-	//Прозрачность - особый случай
+	//Transparency is a special case
 	if(c1->a == 0 || c2->a == 0) {
 		if(c1->a == c2->a) return 0;
 		else return FLT_MAX;

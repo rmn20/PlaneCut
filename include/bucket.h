@@ -9,18 +9,18 @@
 #include "color.h"
 
 typedef struct {
-	//Нормаль (вектор направления) плоскости сечения
+	//Cut plane normal
 	vec3 planeNormal;
-	//Центр плоскости сечения
+	//Cut plane center
 	vec3 planeCenter;
 	
-	//Расстояние от цветов в ведре до его цвета
+	//Distance from the colors in the bucket to its color
 	float length;
 	bool dontPick;
 	
 	cvector_vector_type(vec3) colors;
 	
-	//Цвет самого ведра
+	//Bucket color
 	Color col;
 } Bucket;
 

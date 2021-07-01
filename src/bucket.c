@@ -7,10 +7,10 @@ void bucketFree(Bucket* bucket) {
 }
 
 void bucketAddColor(Bucket* bucket, vec3* col) {
-	//Добавление цвета в вектор цветов
+	//Adding color to a color vector
 	cvector_push_back(bucket->colors, *col);
-	//Добавление цвета к центральной точке плоскости сечения
-	//(потом будет произведено деление на кол-во цветов)
+	//Adding a color to the center point of the cut plane
+	//(then the division will be made by the number of colors)
 	vec3Add(&(bucket->planeCenter), col);
 }
 
@@ -23,26 +23,25 @@ size_t max(size_t a, size_t b) {
 }
 
 void bucketCompute(Bucket* bucket, int bits) {
-	//Функция подсчитывания данных ведра
+	//Bucket data calculation function
 	cvector_vector_type(vec3) colors = bucket->colors;
 	size_t colorsLength = cvector_size(colors);
 	
-	//Нечего подсчитывать
+	//Nothing to calculate
 	if(colorsLength == 0) return;
 	
-	//Делим сумму цветов на их количество
-	//При помощи среднего арифметического получаем
-	//центральную точку плоскости сечения и цвет ведра
+	//Divide the sum of colors by their count
+	//Using the arithmetic mean, we get the center point of the cut plane and the color of the bucket
 	vec3Divv(&(bucket->planeCenter), colorsLength);
 	bucket->col = vec3ToColor(&(bucket->planeCenter), bits);
 	
-	//Расстояние от цвета ведра до цветов внутри ведра
+	//Distance from the bucket color to the colors inside the bucket
 	bucket->length = 0;
 	for(size_t i=0; i<colorsLength; i++) {
 		bucket->length += vec3ColorDistance(colors + i, &(bucket->planeCenter));
 	}
 	
-	//Особые случаи
+	//Special cases
 	if(colorsLength == 2) {
 		vec3 tmp = *(colors + 1);
 		vec3Sub(&tmp, colors);
@@ -52,14 +51,14 @@ void bucketCompute(Bucket* bucket, int bits) {
 		return;
 	} else if(colorsLength == 1) return;
 	
-	//Подсчитывание нормали плоскости сечения
-	//Основано на zalo.github.ioblog/line-fitting
+	//Calculating cut plane normal
+	//Based on zalo.github.ioblog/line-fitting
 	vec3 tmpNormal = (vec3) {0.5, 0.5, 0.5};
 	vec3Normalize(&tmpNormal);
 	vec3 prev = tmpNormal;
 	vec3 pc = bucket->planeCenter;
 	
-	//Я не использую в цикле векторые функции, поскольку они сильно замедляют выполнение программы
+	//I dont use vector functions in for, because then slow down execution
 	for(size_t i=0; i<500; i++) {
 		float nextDirectionx = 0,
 			nextDirectiony = 0,
@@ -85,8 +84,8 @@ void bucketCompute(Bucket* bucket, int bits) {
 		tmpNormal.z = nextDirectionz;
 		vec3Normalize(&tmpNormal);
 		
-		//Если текущая нормаль совпадает с прошлой, то нет смысла продолжать выполнение
-		//Эта проверка повышает скорость выполнения почти в 2 раза
+		//If current and previous normals are equal we dont need to continue loop
+		//This check speeds up the execution almost twice
 		if(tmpNormal.x == prev.x && tmpNormal.y == prev.y && tmpNormal.z == prev.z) break;
 		prev.x = tmpNormal.x;
 		prev.y = tmpNormal.y;
@@ -97,30 +96,29 @@ void bucketCompute(Bucket* bucket, int bits) {
 }
 
 void bucketCut(Bucket* bucket, Bucket* b1, Bucket* b2, int bits) {
-	//Разделение ведра на 2 штуки
+	//Spliting bucket in 2
 	cvector_vector_type(vec3) colors = bucket->colors;
 	size_t colorsLength = cvector_size(colors);
 	
 	if(colorsLength == 2) {
-		//Особый случай
+		//Special case
 		bucketAddColor(b1, colors);
 		bucketAddColor(b2, colors + 1);
 	} else {
 		vec3 tmp = (vec3) {0};
 		
 		for(size_t i=0; i<colorsLength; i++) {
-			//Проверка, находится ли цвет перед плоскостью сечения, или сзади
-			//Составляем вектор направления от центра плоскости сечения до цвета
+			//Checking whether the color is in front of the section plane, or behind
 			vec3Set(&tmp, &(bucket->planeCenter));
 			vec3Sub(&tmp, colors + i);
 			
-			//Скалярное произведение вектора позволяет проверить расположение цвета
+			//The dot product of the vector allows you to check the location of the color
 			if(vec3Dot(&tmp, &(bucket->planeNormal)) < 0) bucketAddColor(b1, colors + i);
 			else bucketAddColor(b2, colors + i);
 		}
 	}
 	
-	//Подсчитывание данных в вёдрах
+	//Computing data in buckets
 	bucketCompute(b1, bits);
 	bucketCompute(b2, bits);
 }

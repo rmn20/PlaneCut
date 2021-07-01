@@ -80,7 +80,7 @@ void vec3Normalize(vec3* a) {
 }
 
 float vec3Dot(vec3* a, vec3* b) {
-	//Скалярное произведение
+	//dot product
 	return a->x * b->x + a->y * b->y + a->z * b->z;
 }
 

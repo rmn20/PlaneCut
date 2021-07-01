@@ -71,27 +71,27 @@ int main(int argc, char** args) {
 		unsigned char* image32 = NULL;
 		unsigned int w, h;
 		
-		//Загрузка изображения
+		//Image loading
 		int error = lodepng_decode32_file(&image32, &w, &h, path);
 		
 		if(error) {
 			printf("Can't load %s, error %d\n", path, error);
 		} else {
 			printf("Processing %s...\n", path);
-			//Переводим rgba пиксели в массив цветов
+			//RGBA to pixels array
 			Color* image = image32;
 			
 			time_t ms = clock();
 			
-			//Генерация палитры
+			//Platte generation
 			cvector_vector_type(Color) palette = buildPalette(image, w, h, paletteSize, bits);
 			
 			printf("Palette generation time: %lu ms\n", (unsigned long) (clock() - ms) * 1000 / CLOCKS_PER_SEC);
 			
-			//Добавление -out.png к концу файла
 			char* newfName = NULL;
 			
 			if(outdir == NULL) {
+				//Adding -out.png postfix
 				newfName = malloc(strlen(path) + 8);
 				strcpy(newfName, path);
 				char* pos = strrchr(newfName, '.');
@@ -100,6 +100,7 @@ int main(int argc, char** args) {
 				else strcat(newfName, "-out.png");
 				
 			} else {
+				//Adding outdir prefix
 				char* fname = strrchr(path, '/');
 				if(fname == NULL) fname = strrchr(path, '\\');
 				if(fname == NULL) fname = path;
@@ -131,11 +132,11 @@ cvector_vector_type(Color) buildPalette(
 	cvector_vector_type(Bucket) buckets = NULL;
 	bool hasAlpha = false;
 	
-	//Создаём первое ведро и заполняем его цветами
+	//Create the first bucket and fill it with colors
 	Bucket firstBucket = (Bucket) {0};
 	
 	for(size_t i=0; i<w*h; i++) {
-		//Обработка прозрачных пикселей
+		//Transparent pixels
 		if(img[i].a == 0) {
 			if(!hasAlpha) {
 				hasAlpha = true;
@@ -148,25 +149,25 @@ cvector_vector_type(Color) buildPalette(
 		bucketAddColor(&firstBucket, &col);
 	}
 	
-	//Обработка ведра и добавление его в вектор вёдер
+	//Processing a bucket and adding it to the bucket vector
 	if(cvector_size(firstBucket.colors) > 0) {
 		bucketCompute(&firstBucket, bits);
 		cvector_push_back(buckets, firstBucket);
 	}
 	
-	//Разделение вёдер
+	//Splitting buckets
 	while(true) {
-		//Проверка количества уникальных цветов
+		//Checking the number of unique colors
 		cvector_vector_type(Color) palette = bucketsToPalette(buckets);
 		size_t colorsCount = cvector_size(palette);
 		cvector_free(palette);
 		
-		//Завершение выполнения, если в векторе достаточное число вёдер
+		//Termination of execution if there are enough buckets in the vector
 		if(colorsCount >= paletteSize) break;
 		
 		printf("%lu / %lu done\n", (unsigned long) colorsCount, (unsigned long) paletteSize);
 		
-		//Поиск ведра с наибольшим расстоянием между цветами в нём и его основным цветом
+		//Search for the bucket with the largest distance between the colors in it and its main color
 		int longestBucketId = -1;
 		float maxLength = -FLT_MAX;
 		
@@ -181,33 +182,33 @@ cvector_vector_type(Color) buildPalette(
 			}
 		}
 		
-		//Не получилось найти подходящее ведро
+		//Can't find a suitable bucket
 		if(longestBucketId == -1) break;
 		
-		//Разделение выбранного ведра на 2
+		//Splitting the selected bucket into 2
 		Bucket b1 = (Bucket) {0}, b2 = (Bucket) {0};
 		bucketCut(buckets + longestBucketId, &b1, &b2, bits);
 		
-		//Удаление текущего ведра
+		//Deleting the current bucket
 		bucketFree(buckets + longestBucketId);
 		cvector_erase(buckets, longestBucketId);
 		
-		/*Если одно из вёдер содержит 0 цветов, значит
-		код не может разделить текущее ведро на 2, и
-		нужно обозначить это, чтобы больше не выбирать это ведро*/
+		/*If one of the buckets contains 0 colors, then
+		the code cannot split the current bucket into 2, and
+		we need to indicate this so that code no longer select this bucket*/
 		if(cvector_size(b1.colors) == 0) b2.dontPick = true;
 		if(cvector_size(b2.colors) == 0) b1.dontPick = true;
 		
-		//Добавляем непустые вёдра в вектор
+		//Adding non-empty buckets to the vector
 		if(cvector_size(b1.colors) > 0) cvector_push_back(buckets, b1);
 		if(cvector_size(b2.colors) > 0) cvector_push_back(buckets, b2);
 	}
 	
-	//Генерация палитры и добавление прозрачного цвета
+	//Generating a palette and adding a transparent color
 	cvector_vector_type(Color) palette = paletteSize == 0 ? NULL : bucketsToPalette(buckets);
 	if(hasAlpha) cvector_push_back(palette, (Color) {0});
 	
-	//Очистка
+	//Cleaning
 	for(size_t i=0; i<cvector_size(buckets); i++) {
 		bucketFree(buckets + i);
 	}
@@ -217,7 +218,7 @@ cvector_vector_type(Color) buildPalette(
 }
 
 cvector_vector_type(Color) bucketsToPalette(cvector_vector_type(Bucket) buckets) {
-	//Составление вектора неповторяющихся цветов из вектора вёдер
+	//Creating a vector of non-repeating colors from a vector of buckets
 	cvector_vector_type(Color) palette = NULL;
 	
 	size_t bucketsLength = cvector_size(buckets);
@@ -243,11 +244,11 @@ cvector_vector_type(Color) bucketsToPalette(cvector_vector_type(Bucket) buckets)
 }
 
 void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) palette, bool dither, int bits) {
-	//Экспорт изображения в png
+	//Exporting an image to png
 	LodePNGState state = (LodePNGState) {0};
 	lodepng_state_init(&state);
 	
-	//Инициализация данных для экспорта
+	//Data initialization
 	state.info_png.color.colortype = LCT_PALETTE;
 	state.info_png.color.bitdepth = 8;
 	
@@ -256,7 +257,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 	
 	state.encoder.auto_convert = false;
 	
-	//Составление палитры
+	//Filling palette
 	for(size_t i=0; i<cvector_size(palette); i++) {
 		Color col = palette[i];
 		
@@ -264,7 +265,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 		lodepng_palette_add(&state.info_raw, col.r, col.g, col.b, col.a);
 	}
 	
-	//Поиск ближайших цветов в палитре
+	//Search for the nearest colors in the palette
 	unsigned char* indices = malloc(w * h);
 	
 	for(size_t y=0; y<h; y++) {
@@ -275,6 +276,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 			indices[x + y*w] = nearestColorIndex;
 			
 			if(dither) {
+				//Floyd–Steinberg dithering
 				Color nearestColor = palette[nearestColorIndex];
 				
 				int quantError[3] = {
@@ -298,7 +300,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 		}
 	}
 	
-	//Экспорт
+	//Export
 	unsigned char* buffer = NULL;
 	size_t bufferSize = 0;
 	
@@ -316,7 +318,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 }
 
 size_t findNearestColor(Color pixel, cvector_vector_type(Color) palette) {
-	//Поиск ближайшего цвета в палитре
+	//Search for the nearest color in the palette
 	float minDist = FLT_MAX;
 	size_t closest = 0;
 	
