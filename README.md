@@ -1,7 +1,7 @@
 # PlaneCut
 Color quantization/palette generation program for png images.
 
-The program uses my algorithm for indexing colors inspired by bsp and median cut. Maybe similar algorithms already exist, but I didn't look for information about it.
+This program uses my color indexing algorithm, inspired by bsp and median section. Maybe similar algorithms already exist, but I didn't search for information about it.
   
 # How to use
 ````
