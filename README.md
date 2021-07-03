@@ -25,3 +25,11 @@ List of colors in the bucket can be represented as a three-dimensional point clo
     
 After constructing the section plane, it is necessary to determine whether the points are located behind or in front of the section plane using the dot product, thus dividing the bucket into 2 parts.
 To select a bucket for dividing, it is necessary to select a bucket whose sum of distances from the center point to the points located in the bucket is largest. The "redmean" formula is chosen for calculating distances, since it is easy to implement in code, and the image quality is higher than when using the Euclidean distance formula.
+  
+# Example
+
+|Original|PlaneCut|Gimp|Photoshop|
+|---|---|---|---|
+|![Original](/examples/correct256.png)|![PlaneCut](/examples/correct256-out.png)|![Gimp](/examples/correct256-gimp.png)|![Photoshop](/examples/correct256-ps.png)|
+|![Original](/examples/tex.png)|![PlaneCut](/examples/tex-out.png)|![Gimp](/examples/tex-gimp.png)|![Photoshop](/examples/tex-ps.png)|
+|![Original](/examples/соака.png)|![PlaneCut](/examples/соака-out.png)|![Gimp](/examples/соака-gimp.png)|![Photoshop](/examples/соака-ps.png)|
