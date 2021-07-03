@@ -15,7 +15,7 @@ PlaneCut test.png -palette 256 -dither 1 -bits 565 -outdir C:/test/
 ````
 
 # Algorithm  
-1) Put all the colors in one bucket  
+1) Put all the pixels(colors) in one bucket  
 2) Find the bucket with the largest distance from the average color to the colors in it  
 3) Divide this bucket into 2 different ones  
 4) If the number of buckets is less than the required size of the palette, then go to step 2  
