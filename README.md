@@ -3,7 +3,7 @@ Color quantization/palette generation program for png images.
 
 The program uses my algorithm for indexing colors inspired by bsp and median cut. Maybe similar algorithms already exist, but I didn't look for information about it.
   
-# How to use:  
+# How to use
 ````
 Enter the paths to the images as arguments.
 Use -p to change palette size. (from 1 to 256 colors) (default is 256)
