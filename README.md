@@ -11,7 +11,7 @@ Use -dither 0/1 to enable dithering. (default is 0)
 Use -bits RGB to change the number of bits per channel. (default is 888)
 Use -outdir to change output directory.
 
-PlaneCut test.png -palette 256 -dither 1 -bits 565 -outdir C:/test/
+PlaneCut test.png -p 256 -dither 1 -bits 565 -outdir C:/test/
 ````
 
 # Algorithm  
