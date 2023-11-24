@@ -20,6 +20,21 @@ void vec3Add(vec3* a, vec3* b) {
 	a->z += b->z;
 }
 
+void vec3Addr(vec3* a, vec3* b) {
+	a->x += b->x;
+	a->y += b->y;
+	a->z += b->z;
+	
+	/*if(a->x < 0) a->x = 0;
+	else if(a->x > 1) a->x = 1;
+	
+	if(a->y < 0) a->y = 0;
+	else if(a->y > 1) a->y = 1;
+	
+	if(a->z < 0) a->z = 0;
+	else if(a->z > 1) a->z = 1;*/
+}
+
 void vec3Addv(vec3* a, float v) {
 	a->x += v;
 	a->y += v;
@@ -102,12 +117,13 @@ float vec3Length(vec3* a) {
 //Redmean from wikipedia
 float vec3ColorDistance(vec3* c1, vec3* c2) {
 	
-	//return vec3DistanceSqr(c1, c2);
-	float r = (c1->x + c2->x) / 2;
+	return vec3DistanceSqr(c1, c2);
+	
+	/*float r = (c1->x + c2->x) / 2;
 	
 	float C = (2 + r) * (c1->x - c2->x)*(c1->x - c2->x) +
 		4 * (c1->y - c2->y)*(c1->y - c2->y) +
 		(2 + (1 - r)) * (c1->z - c2->z)*(c1->z - c2->z);
 	
-	return C;
+	return C;*/
 }

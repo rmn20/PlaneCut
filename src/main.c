@@ -15,7 +15,7 @@ cvector_vector_type(Color) buildPalette(Color* img, int w, int h, size_t palette
 cvector_vector_type(Color) bucketsToPalette(cvector_vector_type(Bucket) buckets);
 
 void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) palette, bool dither, int bits);
-size_t findNearestColor(Color pixel, cvector_vector_type(Color) palette);
+size_t findNearestColor(vec3* pixel, cvector_vector_type(vec3) palette);
 
 int main(int argc, char** args) {
 	
@@ -258,11 +258,22 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 	state.encoder.auto_convert = false;
 	
 	//Filling palette
+	cvector_vector_type(vec3) vecPalette = NULL;
+	
 	for(size_t i=0; i<cvector_size(palette); i++) {
 		Color col = palette[i];
 		
 		lodepng_palette_add(&state.info_png.color, col.r, col.g, col.b, col.a);
 		lodepng_palette_add(&state.info_raw, col.r, col.g, col.b, col.a);
+		
+		if(col.a != 0) cvector_push_back(vecPalette, colorToVec3(&col));
+	}
+	
+	//We dont change original image to prevent dithering leaking
+	vec3* ditherDiff;
+	if(dither) {
+		//2 lines of pixels are enough
+		ditherDiff = calloc(w * 2, sizeof(vec3));
 	}
 	
 	//Search for the nearest colors in the palette
@@ -270,33 +281,58 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 	
 	for(size_t y=0; y<h; y++) {
 		for(size_t x=0; x<w; x++) {
-			Color pixel = img[x + y*w];
 			
-			unsigned char nearestColorIndex = findNearestColor(pixel, palette);
+			Color colPixel = img[x + y*w];
+			vec3 origPixel = colorToVec3(img + x + y*w);
+			vec3 pixel = origPixel;
+			
+			//Add dither difference
+			if(dither) vec3Add(&pixel, ditherDiff + x);
+			
+			unsigned char nearestColorIndex = cvector_size(palette) - 1; //special case for transparent pixels
+			if(colPixel.a != 0) nearestColorIndex = findNearestColor(&pixel, vecPalette);
+			
 			indices[x + y*w] = nearestColorIndex;
 			
-			if(dither) {
+			if(dither && palette[nearestColorIndex].a != 0) {
 				//Floyd–Steinberg dithering
-				Color nearestColor = palette[nearestColorIndex];
+				vec3 nearestColor = vecPalette[nearestColorIndex];
 				
-				int quantError[3] = {
-					pixel.r - nearestColor.r, 
-					pixel.g - nearestColor.g, 
-					pixel.b - nearestColor.b
+				vec3 quantError = (vec3) {
+					origPixel.x - nearestColor.x, 
+					origPixel.y - nearestColor.y, 
+					origPixel.z - nearestColor.z
 				};
 				
 				const float errorSpread = 0.75;
+				vec3Mulv(&quantError, errorSpread);
 				
 				if(x <= w-2) {
-					colorAdd(img + x+1 + y*w, quantError, 6 / 16.0 * errorSpread);
-					if(y <= h-2) colorAdd(img + x+1 + (y+1)*w, quantError, 1 / 16.0 * errorSpread);
+					vec3 addVec = quantError;
+					vec3Mulv(&addVec, 6 / 16.0);
+					vec3Addr(ditherDiff + x+1, &addVec);
+					
+					addVec = quantError; 
+					vec3Mulv(&addVec, 1 / 16.0);
+					if(y <= h-2) vec3Addr(ditherDiff + x+1 + w, &addVec);
 				}
 				
 				if(y <= h-2) {
-					if(x >= 1) colorAdd(img + x-1 + (y+1)*w, quantError, 4 / 16.0 * errorSpread);
-					colorAdd(img + x + (y+1)*w, quantError, 5 / 16.0 * errorSpread);
+					vec3 addVec = quantError;
+					vec3Mulv(&addVec, 4 / 16.0);
+					if(x >= 1) vec3Addr(ditherDiff + x-1 + w, &addVec);
+					
+					addVec = quantError;
+					vec3Mulv(&addVec, 5 / 16.0);
+					vec3Addr(ditherDiff + x + w, &addVec);
 				}
 			}
+		}
+		
+		//Move dither difference one line up
+		if(dither) {
+			memcpy(ditherDiff, ditherDiff + w, sizeof(vec3) * w);
+			memset(ditherDiff + w, 0, sizeof(vec3) * w);
 		}
 	}
 	
@@ -304,6 +340,7 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 	unsigned char* buffer = NULL;
 	size_t bufferSize = 0;
 	
+	//unsigned int error = lodepng_encode32_file(file, imgTest, w, h);
 	unsigned int error = lodepng_encode(&buffer, &bufferSize, indices, w, h, &state);
 	
 	if(!error) {
@@ -317,13 +354,13 @@ void exportPNG(char* file, Color* img, int w, int h, cvector_vector_type(Color) 
 	free(indices);
 }
 
-size_t findNearestColor(Color pixel, cvector_vector_type(Color) palette) {
+size_t findNearestColor(vec3* pixel, cvector_vector_type(vec3) palette) {
 	//Search for the nearest color in the palette
 	float minDist = FLT_MAX;
 	size_t closest = 0;
 	
 	for(size_t i=0; i<cvector_size(palette); i++) {
-		float dist = colorDistance(&pixel, palette + i);
+		float dist = vec3ColorDistance(pixel, palette + i);
 		
 		if(dist < minDist) {
 			minDist = dist;

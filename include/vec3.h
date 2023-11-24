@@ -9,6 +9,7 @@ void vec3Set(vec3* a, vec3* b);
 void vec3Setv3(vec3* a, float x, float y, float z);
 
 void vec3Add(vec3* a, vec3* b);
+void vec3Addr(vec3* a, vec3* b);
 void vec3Addv(vec3* a, float v);
 
 void vec3Sub(vec3* a, vec3* b);
