@@ -19,7 +19,7 @@ PlaneCut test.png -p 256 -dither 1 -bits 565 -outdir C:/test/
 4) If the number of buckets is less than the required palette size, go to step 2.  
 5) After producing a list of buckets, generate a palette from the bucket list, calculating the colors from the arithmetic mean of the colors in each bucket. 
   
-List of colors in one bucket can be represented as a three-dimensional point cloud. [This algorithm is used to find a plane that could be used to split point cloud in two.](https://zalo.github.io/blog/line-fitting/).
+List of colors in one bucket can be represented as a three-dimensional point cloud. [Orthogonal regression is used to find a plane to split point cloud in two.](https://zalo.github.io/blog/line-fitting/).
     
 After constructing the plane, colors behind and in front of the plane will be splitted into two new buckets.
 To select a bucket for splitting, it is necessary to find a bucket with the largest summ of distances from each point to the average bucket point. The "redmean" formula is used for color distance calculation.
