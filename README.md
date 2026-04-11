@@ -1,7 +1,5 @@
 # PlaneCut
-Color quantization/palette generation program for png images that outperforms Photoshop and GIMP.
-
-This program uses color indexing algorithm inspired by bsp and the median section.
+Color quantization/palette generation program.
   
 # How to use
 ````
@@ -15,16 +13,16 @@ PlaneCut test.png -p 256 -dither 1 -bits 565 -outdir C:/test/
 ````
 
 # Algorithm  
-1) Put all the pixels (colors) from the image into one bucket
-2) Find the bucket with the largest distance from the average color to the colors in it  
+1) Put all pixels (colors) from the image into one bucket.
+2) Find a bucket with the largest distance from the average color to the colors inside bucket.  
 3) Split this bucket into 2 different buckets.  
 4) If the number of buckets is less than the required palette size, go to step 2.  
-5) After making a list of buckets, convert them to a palette, calculating the color from the arithmetic mean of the colors in the bucket. 
+5) After producing a list of buckets, generate a palette from the bucket list, calculating the colors from the arithmetic mean of the colors in each bucket. 
   
-List of colors in the bucket can be represented as a three-dimensional point cloud. Having such an array of points, I determine the point through which the section plane should pass to split the point cloud into 2 buckets, this point will be the arithmetic mean of all the points in the bucket. It remains to determine the direction of the section plane, [I use the algorithm from here for this](https://zalo.github.io/blog/line-fitting/).
+List of colors in one bucket can be represented as a three-dimensional point cloud. [This algorithm is used to find a plane that could be used to split point cloud in two.](https://zalo.github.io/blog/line-fitting/).
     
-After constructing the section plane, it is necessary to determine whether the points are located behind or in front of the section plane using the dot product, thus dividing the bucket into 2 parts.
-To select a bucket for dividing, it is necessary to select a bucket whose sum of distances from the average point to the points located in the bucket is largest. The "redmean" formula is chosen for calculating distances, since it is easy to implement in code, and the image quality is higher than when using the Euclidean distance formula. (altho this may cause problems when using dithering)
+After constructing the plane, colors behind and in front of the plane will be splitted into two new buckets.
+To select a bucket for splitting, it is necessary to find a bucket with the largest summ of distances from each point to the average bucket point. The "redmean" formula is used for color distance calculation.
   
 # Examples
 
